@@ -1,0 +1,47 @@
+version: 0.1
+
+# --- Example definition with filter, dimensions and measures ---
+#
+source: patricksdemos.devconnect.org_emissions_revenue
+#
+# filter: year = 'globally filtered value'
+#
+dimensions:
+  - name: industry
+    expr: industry
+
+  - name: organization
+    expr: organization
+
+  - name: year
+    expr: year
+
+measures:
+  - name: org_revenue
+    expr: sum(revenue)
+
+  - name: org_emissions_direct
+    expr: sum(emissions_scope_1)
+
+  - name: org_employees
+    expr: sum(employees)
+
+  - name: emission_score
+    expr: avg(revenue/emissions_scope_1)
+
+  - name: emission_per_employee
+    expr: avg(employees/emissions_scope_1)
+
+  - name: emission_score_benchmark
+    expr: avg(revenue/emissions_scope_1)
+    window:
+      - order: organization
+        range: all
+        semiadditive: last
+
+  - name: emission_per_employee_benchmark
+    expr: avg(employees/emissions_scope_1)
+    window:
+      - order: organization
+        range: all
+        semiadditive: last
