@@ -2,6 +2,8 @@
 
 ## Setup
 
+Token from Workspace->Settings->Developer->Access Tokens
+
 1. Copy the example secrets file:
    ```bash
    cp secrets.tfvars.example secrets.tfvars
@@ -17,6 +19,8 @@
    terraform plan -var-file="terraform.tfvars" -var-file="secrets.tfvars"
    terraform apply -var-file="terraform.tfvars" -var-file="secrets.tfvars"
    ```
+
+NOTE: email is sent to provisioned user
 
 ## Security
 
