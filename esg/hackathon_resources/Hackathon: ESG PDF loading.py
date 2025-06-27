@@ -24,8 +24,7 @@
 # COMMAND ----------
 
 # Input
-# TODO: change output catalog/table/schema
-pdf_volume = "/Volumes/devconnect_2025/esg/esg_reports_latest/"
+pdf_volume = "/Volumes/workspace/esg/pdf_documents"
 
 # Output
 # TODO: change output catalog/table/schema
