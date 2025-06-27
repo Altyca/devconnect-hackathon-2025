@@ -25,11 +25,11 @@ CREATE OR REFRESH STREAMING TABLE partners_data_raw
     SELECT
       `text` AS input,
       ai_query(
-        'kie-5e148f1a-endpoint', -- REPLACE with your endpoint name
+        'YOUR_ENDPOINT_NAME', -- REPLACE with your endpoint name
         input,
         failOnError => false
       ) AS response
-    FROM STREAM(`your_catalog`.`your_schema`.`your_table`) -- REPLACE with your document texts table path
+    FROM STREAM(`YOUR_CATALOG`.`YOUR_SCHEMA`.`YOUR_TABLE`) -- REPLACE with your document texts table path
   )
   SELECT
     input,
