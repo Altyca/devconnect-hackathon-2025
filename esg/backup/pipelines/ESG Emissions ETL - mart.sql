@@ -12,6 +12,7 @@ AS
 WITH partners_standardized AS (
   SELECT 
     org_name,
+    industry,
     'partners' AS data_source,
     annual_revenue_usd,
     year(current_timestamp()) AS reporting_year,
@@ -24,6 +25,7 @@ WITH partners_standardized AS (
 companies_standardized AS (
   SELECT 
     org_name,
+    industry,
     'public_companies' AS data_source,
     revenue_usd AS annual_revenue_usd,
     reporting_year,

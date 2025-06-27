@@ -87,7 +87,8 @@ SELECT
   LAG(scope_all_ghg) OVER (PARTITION BY silver.org_name ORDER BY reporting_year) AS scope_all_ghg_prev_year,
   scope_all_ghg - scope_all_ghg_prev_year AS scope_all_ghg_yoy_growth_delta,
   ROUND(((scope_all_ghg / scope_all_ghg_prev_year) - 1), 2) * 100 AS scope_all_ghg_yoy_growth_pct,
-  revenue.revenue_usd_billions * 10e9 AS revenue_usd
+  revenue.revenue_usd_billions * 10e9 AS revenue_usd,
+  revenue.industry
 FROM companies_data_silver_1 silver
 LEFT JOIN companies_annual_revenue_silver revenue
 ON silver.org_name = revenue.org_name;
