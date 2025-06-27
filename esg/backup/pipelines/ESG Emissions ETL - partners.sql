@@ -12,7 +12,8 @@
 -- MAGIC ### STEP 1 : BATCH INFERENCE
 -- MAGIC
 -- MAGIC **Purpose:** Run batch inference on all documents using the information extraction Agent model.
-
+-- MAGIC
+-- MAGIC **TODO:** Replace the endpoint name and the document texts table path with your own.
 -- COMMAND ----------
 
 CREATE OR REFRESH STREAMING TABLE partners_data_raw 
@@ -24,11 +25,11 @@ CREATE OR REFRESH STREAMING TABLE partners_data_raw
     SELECT
       `text` AS input,
       ai_query(
-        'kie-5e148f1a-endpoint', -- Replace with your endpoint name
+        'kie-5e148f1a-endpoint', -- REPLACE with your endpoint name
         input,
         failOnError => false
       ) AS response
-    FROM STREAM(`devconnect_2025`.`esg`.`document_texts`)
+    FROM STREAM(`your_catalog`.`your_schema`.`your_table`) -- REPLACE with your document texts table path
   )
   SELECT
     input,
@@ -52,6 +53,7 @@ CREATE OR REFRESH MATERIALIZED VIEW partners_data_parsed (
 AS SELECT 
 -- replace with your extracted data 
   get_json_object(response, '$.company_name') as org_name,
+  get_json_object(response, '$.industry') as industry,
   CAST(
     get_json_object(response, '$.annual_revenue_usd') AS DOUBLE
   ) as annual_revenue_usd,
