@@ -277,6 +277,7 @@ with mlflow.start_run(run_name="Prophet Model Run") as run:
 
     # Update dependencies in the default conda environment
     env = mlflow.pyfunc.get_default_conda_env()
+    env['dependencies'][-1]['pip'] = [pkg for pkg in env['dependencies'][-1]['pip'] if ("cloudpickle" not in pkg) and ("mlflow" not in pkg)]
     env['dependencies'][-1]['pip'] += ["prophet==1.1.6"]
     env['dependencies'][-1]['pip'] += ["pandas==1.5.3"]
     env['dependencies'][-1]['pip'] += ["pyspark==4.0.0"]
@@ -297,7 +298,7 @@ with mlflow.start_run(run_name="Prophet Model Run") as run:
     )
 
     # Retain the "run_id" for use with other MLflow functionalities like registering the model
-    run_id = run.info.run_uuid
+    run_id = run.info.run_id
 
 
 # COMMAND ----------
@@ -325,7 +326,7 @@ def get_latest_model_version(model_name:str = None):
         latest_version = version_int
     return latest_version
   
-model_version = get_latest_model_version(f"{catalog}.{schema}.{model_name}")
+model_version = get_latest_model_version(f"{model_catalog}.{model_schema}.{model_name}")
 model_version
 
 # COMMAND ----------
@@ -353,7 +354,7 @@ existing_endpoint = next(
 endpoint_config = {
     "served_entities": [
         {
-            "entity_name": f"{catalog}.{schema}.{model_name}",
+            "entity_name": f"{model_catalog}.{model_schema}.{model_name}",
             "entity_version": model_version,
             "workload_size": "Small",
             "workload_type": "CPU",

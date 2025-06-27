@@ -11,9 +11,11 @@ def query_endpoint(history_pd):
   client_id = os.getenv('DATABRICKS_CLIENT_ID')
   client_secret = os.getenv('DATABRICKS_CLIENT_SECRET')
   databricks_instance = os.getenv('DATABRICKS_INSTANCE')
-  serving_endpoint_url = 'https://e2-demo-field-eng.cloud.databricks.com/serving-endpoints/forecasting_model_serving/invocations'
+#   TODO: Update Path
+  serving_endpoint_url = 'https://dbc-c2921f8f-f03d.cloud.databricks.com/serving-endpoints/vs_forecasting_model/invocations'
 
-  token_url = "https://e2-demo-field-eng.cloud.databricks.com/oidc/v1/token"
+#   TODO: Update Path
+  token_url = "https://dbc-c2921f8f-f03d.cloud.databricks.com/oidc/v1/token"
   token_data = {
       'grant_type': 'client_credentials',
       'scope': 'all-apis'
@@ -44,7 +46,9 @@ def query_endpoint(history_pd):
       'Content-Type': 'application/json'
   }
   # API call to deploy model and obtain predictions
-  serving_endpoint_url = 'https://e2-demo-field-eng.cloud.databricks.com/serving-endpoints/forecasting_model_serving/invocations'
+  #   TODO: Update Path
+
+  serving_endpoint_url = 'https://dbc-c2921f8f-f03d.cloud.databricks.com/serving-endpoints/vs_forecasting_model/invocations'
   response = requests.post(serving_endpoint_url, headers=headers, data=data_json)
   
   return response
