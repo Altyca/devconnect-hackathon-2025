@@ -22,7 +22,7 @@ CREATE VIEW companies_data_bronze
 AS
 SELECT * , 
   regexp_extract(_metadata.file_path, '([^/]+\.csv)$') AS filename 
-FROM read_files('/Volumes/workspace/esg/emissions_and_revenue_data/emmissions*.csv', format => "csv");
+FROM read_files('/Volumes/dev_hackathon/esg/emissions_and_revenue_data/emmissions*.csv', format => "csv");
 
 -- COMMAND ----------
 
@@ -30,7 +30,7 @@ CREATE VIEW companies_annual_revenue_bronze
 AS
 SELECT *, 
 regexp_extract(_metadata.file_path, '([^/]+\.csv)$') AS filename 
-FROM read_files('/Volumes/workspace/esg/emissions_and_revenue_data/companies-annual-revenue.csv', format => "csv");
+FROM read_files('/Volumes/dev_hackathon/esg/emissions_and_revenue_data/companies-annual-revenue.csv', format => "csv");
 
 -- COMMAND ----------
 
