@@ -12,13 +12,13 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 st.set_page_config(
-    page_title="Document Uploader", 
-    page_icon="�", 
+    page_title="ESG Data Hub", 
+    page_icon="🌱", 
     layout="wide"
 )
 
 def create_databricks_client():
-    """Create a Databricks WorkspaceClient with automatic authentication."""
+    """Create a secure connection to the cloud platform."""
     try:
         # Try to use 'hackat' profile for local development
         try:
@@ -31,27 +31,18 @@ def create_databricks_client():
             logger.info("Using default cloud authentication")
             return client
     except Exception as e:
-        st.error(f"Failed to create Databricks client: {str(e)}")
+        logger.error(f"Failed to create client: {str(e)}")
         return None
 
 def upload_document_to_volume(client, file_content, file_name, base_volume_path):
-    """Upload document file to Databricks volume with automatic folder organization."""
+    """Upload file to secure cloud storage with automatic organization."""
     temp_dir = None
     try:
         # Validate file content
         if not file_content:
             raise ValueError("File content is empty")
         
-        # Log initial file info
-        logger.info(f"Starting upload for {file_name}, content type: {type(file_content)}, size: {len(file_content)} bytes")
-        
-        # For PDF files, let's verify the content starts with PDF header
-        if file_name.lower().endswith('.pdf'):
-            if not file_content.startswith(b'%PDF-'):
-                logger.warning(f"PDF file {file_name} does not start with PDF header")
-                logger.info(f"First 20 bytes: {file_content[:20]}")
-            else:
-                logger.info(f"PDF header verified for {file_name}")
+        logger.info(f"Processing upload for {file_name}")
         
         # Ensure base volume path ends with /
         if not base_volume_path.endswith('/'):
@@ -63,205 +54,265 @@ def upload_document_to_volume(client, file_content, file_name, base_volume_path)
             volume_path = f"{base_volume_path}pdf/"
         elif file_extension == 'csv':
             volume_path = f"{base_volume_path}csv/"
-        elif file_extension in ['png', 'jpg', 'jpeg']:
-            volume_path = f"{base_volume_path}images/"
         else:
             volume_path = base_volume_path  # Default to root if unknown type
         
         # Create full path for the file
         full_path = f"{volume_path}{file_name}"
         
-        # Try a more direct approach - write content directly using workspace files API
-        logger.info(f"Attempting direct upload to {full_path}")
+        logger.info(f"Uploading to {full_path}")
         
-        # Create temp file in a specific location with better control
+        # Ensure the directory exists first
+        try:
+            client.files.create_directory(volume_path)
+            logger.info(f"Created/verified directory: {volume_path}")
+        except Exception as e:
+            logger.warning(f"Could not create directory {volume_path}: {str(e)}")
+        
+        # Create temp file for upload
         temp_dir = tempfile.mkdtemp()
         temp_file_path = os.path.join(temp_dir, file_name)
         
-        # Write file with explicit binary mode and ensure all data is written
+        # Write file content
         with open(temp_file_path, 'wb') as f:
             if isinstance(file_content, str):
                 file_content = file_content.encode('utf-8')
             f.write(file_content)
             f.flush()
-            os.fsync(f.fileno())  # Force write to disk
+            os.fsync(f.fileno())
         
-        # Verify the written file
-        actual_size = os.path.getsize(temp_file_path)
-        logger.info(f"Created temp file {temp_file_path} with size {actual_size}")
-        
-        if actual_size != len(file_content):
-            raise ValueError(f"Temp file size mismatch: expected {len(file_content)}, got {actual_size}")
-        
-        # Double-check PDF header in temp file
-        if file_name.lower().endswith('.pdf'):
-            with open(temp_file_path, 'rb') as verify_file:
-                first_20 = verify_file.read(20)
-                logger.info(f"Temp file PDF header: {first_20}")
-                if not first_20.startswith(b'%PDF-'):
-                    raise ValueError("Temp file PDF header is corrupted")
-        
-        # Upload using databricks files API with correct parameters
-        logger.info(f"Uploading {temp_file_path} to {full_path} (size: {actual_size})")
-        
-        # Use the correct API signature: upload(file_path, contents, overwrite)
-        # Open the temp file as a binary stream and pass it to the API
+        # Upload to cloud platform
         with open(temp_file_path, 'rb') as file_handle:
             client.files.upload(full_path, file_handle, overwrite=True)
         
-        logger.info(f"Successfully uploaded {file_name} to {full_path}")
+        logger.info(f"Successfully uploaded {file_name}")
         
-        # Clean up temp directory
+        # Clean up
         shutil.rmtree(temp_dir)
-        logger.info(f"Cleaned up temp directory: {temp_dir}")
         
         return full_path
             
     except Exception as e:
-        logger.error(f"Failed to upload document: {str(e)}")
-        # Clean up on error
+        logger.error(f"Upload failed: {str(e)}")
         if temp_dir and os.path.exists(temp_dir):
             shutil.rmtree(temp_dir)
         raise e
 
+def list_uploaded_files(client, base_volume_path):
+    """List files from CSV and PDF folders."""
+    try:
+        files_info = {"csv": [], "pdf": []}
+        
+        # List CSV files
+        try:
+            csv_path = f"{base_volume_path}csv"
+            csv_entries = list(client.files.list_directory_contents(csv_path))
+            for entry in csv_entries:
+                # DirectoryEntry objects: if it's not explicitly a directory, assume it's a file
+                if not (hasattr(entry, 'is_directory') and entry.is_directory):
+                    files_info["csv"].append({
+                        "name": entry.name,
+                        "path": entry.path,
+                        "size": getattr(entry, 'file_size', 0),
+                        "modified": getattr(entry, 'last_modified', None)
+                    })
+        except Exception as e:
+            logger.warning(f"Could not list CSV files: {str(e)}")
+        
+        # List PDF files
+        try:
+            pdf_path = f"{base_volume_path}pdf"
+            pdf_entries = list(client.files.list_directory_contents(pdf_path))
+            for entry in pdf_entries:
+                # DirectoryEntry objects: if it's not explicitly a directory, assume it's a file
+                if not (hasattr(entry, 'is_directory') and entry.is_directory):
+                    files_info["pdf"].append({
+                        "name": entry.name,
+                        "path": entry.path,
+                        "size": getattr(entry, 'file_size', 0),
+                        "modified": getattr(entry, 'last_modified', None)
+                    })
+        except Exception as e:
+            logger.warning(f"Could not list PDF files: {str(e)}")
+        
+        return files_info
+    except Exception as e:
+        logger.error(f"Failed to list files: {str(e)}")
+        return {"csv": [], "pdf": []}
+
 def main():
-    st.title("📄 Document Uploader")
-    st.markdown("Upload documents to Databricks volume with **automatic folder organization**:")
-    st.markdown("• PDFs → `/pdf/` • CSVs → `/csv/` • Images → `/images/`")
+    st.title("🌱 ESG Data Hub")
+    st.markdown("**Upload your ESG data files securely to the cloud platform**")
     
-    # Check connection
+    # Connection status
     client = create_databricks_client()
     if client:
-        st.success("🟢 Connected to Databricks")
+        st.success("✅ Connected to secure cloud platform")
     else:
-        st.error("🔴 Failed to connect to Databricks")
+        st.error("❌ Connection failed - please contact IT support")
         st.stop()
     
     st.divider()
     
-    # File uploader
-    st.header("📤 Upload Document")
-    uploaded_file = st.file_uploader(
-        "Choose a document to upload",
-        type=['csv', 'pdf', 'png', 'jpg', 'jpeg'],
-        help="Supported formats: CSV, PDF, PNG, JPG"
+    # Simplified upload section
+    st.header("Upload Data Files")
+    
+    uploaded_files = st.file_uploader(
+        "Select your files",
+        type=['csv', 'pdf'],
+        help="Supported formats: CSV data files, PDF reports",
+        accept_multiple_files=True
     )
     
-    if uploaded_file is not None:
-        # Read file content once and store it
-        file_content = uploaded_file.read()
-        uploaded_file.seek(0)  # Reset for any preview operations
+    if uploaded_files:
+        # Display summary of selected files
+        st.write(f"**{len(uploaded_files)} file(s) selected:**")
         
-        # Validate file content immediately
-        if not file_content:
-            st.error("❌ The uploaded file appears to be empty")
-            return
+        # Show file list and validate all files
+        valid_files = []
+        total_size = 0
         
-        # For PDF files, verify it has proper PDF header
-        if uploaded_file.name.lower().endswith('.pdf'):
-            if not file_content.startswith(b'%PDF-'):
-                st.error("❌ The uploaded file does not appear to be a valid PDF")
-                st.info(f"File starts with: {file_content[:20]}")
-                return
+        for uploaded_file in uploaded_files:
+            file_content = uploaded_file.read()
+            uploaded_file.seek(0)
+            
+            # Validate file
+            is_valid = True
+            error_msg = ""
+            
+            if not file_content:
+                is_valid = False
+                error_msg = "Empty file"
+            elif uploaded_file.name.lower().endswith('.pdf') and not file_content.startswith(b'%PDF-'):
+                is_valid = False
+                error_msg = "Invalid PDF"
+            
+            if is_valid:
+                valid_files.append((uploaded_file, file_content))
+                total_size += uploaded_file.size
+                
+                # Show file info
+                col1, col2, col3 = st.columns([2, 1, 1])
+                with col1:
+                    icon = "📊" if uploaded_file.name.lower().endswith('.csv') else "📄"
+                    st.write(f"{icon} {uploaded_file.name}")
+                with col2:
+                    file_size_mb = uploaded_file.size / (1024 * 1024)
+                    st.write(f"{file_size_mb:.2f} MB")
+                with col3:
+                    st.write("✅ Valid")
             else:
-                st.success("✅ Valid PDF file detected")
+                # Show error for invalid files
+                col1, col2, col3 = st.columns([2, 1, 1])
+                with col1:
+                    st.write(f"❌ {uploaded_file.name}")
+                with col2:
+                    st.write("")
+                with col3:
+                    st.write(f"❌ {error_msg}")
         
-        # Display file information
-        col1, col2 = st.columns([2, 1])
-        
-        with col1:
-            st.subheader("File Information")
-            st.write(f"**Name:** {uploaded_file.name}")
-            st.write(f"**Type:** {uploaded_file.type}")
-            st.write(f"**Size:** {uploaded_file.size:,} bytes")
-            st.write(f"**Content Size:** {len(file_content):,} bytes")
+        # Show total size
+        if valid_files:
+            total_size_mb = total_size / (1024 * 1024)
+            st.write(f"**Total size:** {total_size_mb:.2f} MB")
             
-            # Check if sizes match
-            if uploaded_file.size != len(file_content):
-                st.warning(f"⚠️ Size mismatch: declared {uploaded_file.size}, read {len(file_content)}")
-            
-            # Preview for different file types
-            if uploaded_file.name.endswith('.csv') or uploaded_file.type == 'text/csv':
-                if st.checkbox("Preview CSV content"):
-                    try:
-                        # Create a new file-like object from the content for preview
-                        import io
-                        csv_content = io.StringIO(file_content.decode('utf-8'))
-                        df = pd.read_csv(csv_content)
-                        st.dataframe(df.head(10))
-                    except Exception as e:
-                        st.warning(f"Cannot preview this CSV file: {str(e)}")
-            elif uploaded_file.name.endswith(('.png', '.jpg', '.jpeg')) or uploaded_file.type.startswith('image/'):
-                if st.checkbox("Preview image"):
-                    try:
-                        # Create a new file-like object from the content for preview
-                        import io
-                        image_content = io.BytesIO(file_content)
-                        st.image(image_content, caption=uploaded_file.name, use_column_width=True)
-                    except Exception as e:
-                        st.warning(f"Cannot preview this image file: {str(e)}")
-            elif uploaded_file.name.endswith('.pdf'):
-                st.info("PDF preview not available - file will be uploaded as-is")
-                # Show PDF header info for debugging
-                if file_content.startswith(b'%PDF-'):
-                    pdf_version = file_content[:8].decode('ascii', errors='ignore')
-                    st.code(f"PDF Header: {pdf_version}")
-                    st.write(f"**First 50 bytes (hex):** {file_content[:50].hex()}")
-        
-        with col2:
-            st.subheader("Upload Actions")
-            
-            if st.button("📤 Upload to Volume", type="primary", use_container_width=True):
+            # Upload button for all valid files
+            if st.button("🚀 Upload All Files", type="primary", use_container_width=True):
                 try:
-                    with st.spinner(f"Uploading {uploaded_file.name}..."):
-                        base_volume_path = "/Volumes/hackathon_zurich_2025/a_team/landing_data/"
+                    progress_bar = st.progress(0)
+                    status_text = st.empty()
+                    
+                    base_volume_path = "/Volumes/hackathon_zurich_2025/a_team/landing_data/"
+                    uploaded_files_list = []
+                    failed_files = []
+                    
+                    for i, (uploaded_file, file_content) in enumerate(valid_files):
+                        try:
+                            status_text.text(f"Uploading {uploaded_file.name}...")
+                            
+                            uploaded_path = upload_document_to_volume(
+                                client, 
+                                file_content, 
+                                uploaded_file.name, 
+                                base_volume_path
+                            )
+                            
+                            uploaded_files_list.append(uploaded_file.name)
+                            
+                        except Exception as e:
+                            logger.error(f"Failed to upload {uploaded_file.name}: {str(e)}")
+                            failed_files.append(uploaded_file.name)
                         
-                        # Log file info for debugging
-                        logger.info(f"Uploading file: {uploaded_file.name}, size: {len(file_content)} bytes, type: {type(file_content)}")
-                        
-                        # Verify we have content
-                        if not file_content:
-                            st.error("❌ File appears to be empty or could not be read")
-                            return
-                        
-                        uploaded_path = upload_document_to_volume(
-                            client, 
-                            file_content, 
-                            uploaded_file.name, 
-                            base_volume_path
-                        )
-                        
-                        st.success(f"✅ Successfully uploaded '{uploaded_file.name}' to {uploaded_path}")
+                        # Update progress
+                        progress = (i + 1) / len(valid_files)
+                        progress_bar.progress(progress)
+                    
+                    # Clear progress indicators
+                    progress_bar.empty()
+                    status_text.empty()
+                    
+                    # Show results
+                    if uploaded_files_list:
+                        st.success(f"✅ Successfully uploaded {len(uploaded_files_list)} file(s)!")
+                        for filename in uploaded_files_list:
+                            st.write(f"✅ {filename}")
                         st.balloons()
+                    
+                    if failed_files:
+                        st.error(f"❌ Failed to upload {len(failed_files)} file(s):")
+                        for filename in failed_files:
+                            st.write(f"❌ {filename}")
+                        st.write("Please try again or contact support.")
                             
                 except Exception as e:
-                    st.error(f"❌ Upload failed: {str(e)}")
+                    st.error(f"❌ Upload process failed. Please try again or contact support.")
+        else:
+            st.warning("⚠️ No valid files selected. Please check your files and try again.")
     
-    # Information section
-    with st.expander("ℹ️ Information"):
-        st.markdown("""
-        **Target Volume:** `/Volumes/hackathon_zurich_2025/a_team/landing_data/`
-        
-        **Automatic Folder Organization:**
-        - **PDF files** → `/Volumes/hackathon_zurich_2025/a_team/landing_data/pdf/`
-        - **CSV files** → `/Volumes/hackathon_zurich_2025/a_team/landing_data/csv/`
-        - **Image files** → `/Volumes/hackathon_zurich_2025/a_team/landing_data/images/`
-        
-        **Authentication:**
-        - Local: Uses 'hackat' profile from ~/.databrickscfg
-        - Cloud: Uses automatic Databricks authentication
-        
-        **Supported File Types:**
-        - **CSV**: Data files with preview capability
-        - **PDF**: Document files (uploaded as-is)
-        - **PNG/JPG**: Image files with preview capability
-        
-        **Features:**
-        - File preview before upload
-        - Automatic folder organization by file type
-        - Direct upload to Databricks volume
-        - Overwrite existing files with same name
-        """)
+    st.divider()
+    
+    # File browser section
+    st.header("📁 Uploaded Files")
+    
+    if st.button("🔄 Refresh File List", use_container_width=False):
+        st.rerun()
+    
+    with st.spinner("Loading files..."):
+        base_volume_path = "/Volumes/hackathon_zurich_2025/a_team/landing_data/"
+        files_info = list_uploaded_files(client, base_volume_path)
+    
+    # Create tabs for different file types
+    tab1, tab2 = st.tabs(["📊 CSV Data Files", "📄 PDF Reports"])
+    
+    with tab1:
+        csv_files = files_info["csv"]
+        if csv_files:
+            st.write(f"**{len(csv_files)} CSV file(s) found**")
+            
+            # Create a simple list for better display
+            for file in csv_files:
+                col1, col2 = st.columns([3, 1])
+                with col1:
+                    st.write(f"📊 **{file['name']}**")
+                with col2:
+                    st.write("CSV")
+        else:
+            st.info("No CSV files uploaded yet.")
+    
+    with tab2:
+        pdf_files = files_info["pdf"]
+        if pdf_files:
+            st.write(f"**{len(pdf_files)} PDF file(s) found**")
+            
+            # Create a simple list for better display
+            for file in pdf_files:
+                col1, col2 = st.columns([3, 1])
+                with col1:
+                    st.write(f"📄 **{file['name']}**")
+                with col2:
+                    st.write("PDF")
+        else:
+            st.info("No PDF files uploaded yet.")
 
 if __name__ == "__main__":
     main()
